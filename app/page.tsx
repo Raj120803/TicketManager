@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Calendar, Hash, Type, Clock, CheckCircle2, RefreshCw, Database } from "lucide-react";
+import { Plus, Trash2, Calendar, Hash, Type, Clock, CheckCircle2, RefreshCw, Database, ExternalLink, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
-import { getTickets, addTicket, removeTicket, Ticket } from "./actions";
+import { getTickets, addTicket, removeTicket, Ticket, getSheetUrl } from "./actions";
 
 export default function HiveTicketTracker() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -11,6 +11,40 @@ export default function HiveTicketTracker() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isConfigured, setIsConfigured] = useState(true); // Flag to check if .env is set
+  const [sheetUrl, setSheetUrl] = useState<string | null>(null);
+  const [isAuthEnabled, setIsAuthEnabled] = useState(true); // Default to true on new devices
+
+  const [pinModal, setPinModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    resolve: (pin: string | null) => void;
+  }>({
+    isOpen: false,
+    message: "",
+    resolve: () => {},
+  });
+  const [pinInput, setPinInput] = useState("");
+
+  const requestPin = (message: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+      setPinModal({ isOpen: true, message, resolve });
+    });
+  };
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    pinModal.resolve(pinInput);
+    setPinModal({ ...pinModal, isOpen: false });
+    setPinInput("");
+  };
+
+  const handlePinCancel = () => {
+    pinModal.resolve(null);
+    setPinModal({ ...pinModal, isOpen: false });
+    setPinInput("");
+  };
+
+  const STATIC_PIN = process.env.NEXT_PUBLIC_APP_PIN ;
 
   // Load from Google Sheets on mount
   useEffect(() => {
@@ -18,6 +52,9 @@ export default function HiveTicketTracker() {
       try {
         const data = await getTickets();
         setTickets(data);
+        
+        const url = await getSheetUrl();
+        setSheetUrl(url);
         toast.success("Tickets fetched successfully!");
       } catch (err) {
         toast.error("Failed to fetch tickets!");
@@ -30,14 +67,45 @@ export default function HiveTicketTracker() {
     loadData();
     
     // Set date only on client to avoid Server/Client hydration mismatch
-    setNewTicket(prev => ({ ...prev, date: new Date().toISOString().split("T")[0] }));
+    setNewTicket(prev => ({ ...prev, date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0] }));
+    const savedAuth = localStorage.getItem("isAuthEnabled");
+    if (savedAuth === "false") {
+      setIsAuthEnabled(false);
+    } else {
+      // If null (first time) or true, default to locked
+      setIsAuthEnabled(true);
+    }
   }, []);
+
+  const handleToggleAuth = async () => {
+    const pin = await requestPin(`Enter 4-digit PIN to ${isAuthEnabled ? "disable" : "enable"} authentication:`);
+    if (pin === STATIC_PIN) {
+      const newState = !isAuthEnabled;
+      setIsAuthEnabled(newState);
+      localStorage.setItem("isAuthEnabled", newState.toString());
+      toast.success(`Authentication ${newState ? "enabled" : "disabled"}`);
+    } else if (pin !== null) {
+      toast.error("Incorrect PIN!");
+    }
+  };
 
   const handleAddTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTicket.id.trim() || !newTicket.title.trim() || !newTicket.date) return;
     
-    const formattedTicket = { ...newTicket };
+    if (isAuthEnabled) {
+      const pin = await requestPin("Authentication required. Enter 4-digit PIN:");
+      if (pin !== STATIC_PIN) {
+        if (pin !== null) toast.error("Incorrect PIN! Ticket not added.");
+        return;
+      }
+    }
+
+    let finalId = newTicket.id.trim();
+    if (!finalId.toLowerCase().startsWith("id")) {
+      finalId = `Id ${finalId}`;
+    }
+    const formattedTicket = { ...newTicket, id: finalId };
     
     // Optimistically update UI (but wait for server to confirm order)
     setIsSaving(true);
@@ -48,7 +116,7 @@ export default function HiveTicketTracker() {
       // Re-fetch to ensure sync with Google Sheets (since appending goes to the bottom)
       const data = await getTickets();
       setTickets(data);
-      setNewTicket({ id: "", title: "", date: new Date().toISOString().split("T")[0], timeTaken: "" });
+      setNewTicket({ id: "", title: "", date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0], timeTaken: "" });
       toast.success("Ticket added successfully!", { id: toastId });
     } else {
       toast.error("Failed to save to Google Sheets! Check .env credentials.", { id: toastId });
@@ -59,6 +127,14 @@ export default function HiveTicketTracker() {
   };
 
   const handleRemoveTicket = async (indexToRemove: number) => {
+    if (isAuthEnabled) {
+      const pin = await requestPin("Authentication required. Enter 4-digit PIN to delete:");
+      if (pin !== STATIC_PIN) {
+        if (pin !== null) toast.error("Incorrect PIN! Ticket not deleted.");
+        return;
+      }
+    }
+
     setIsSaving(true);
     const toastId = toast.loading("Deleting ticket...");
     
@@ -76,6 +152,45 @@ export default function HiveTicketTracker() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans p-6 md:p-12">
+      {pinModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-2xl w-full max-w-sm">
+            <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-white">
+              <Lock className="w-5 h-5 text-emerald-400" />
+              Security Check
+            </h3>
+            <p className="text-neutral-400 text-sm mb-6">{pinModal.message}</p>
+            
+            <form onSubmit={handlePinSubmit} className="space-y-4">
+              <input
+                type="password"
+                required
+                autoFocus
+                maxLength={4}
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="••••"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-4 text-center text-3xl tracking-[1em] indent-[1em] text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all font-mono"
+              />
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handlePinCancel}
+                  className="w-1/2 py-3 px-4 rounded-xl font-medium bg-neutral-800 text-neutral-300 hover:bg-neutral-700 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-3 px-4 rounded-xl font-bold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-600/20 cursor-pointer"
+                >
+                  Confirm
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <div className="max-w-6xl mx-auto space-y-8">
         
         {/* Header */}
@@ -98,7 +213,33 @@ export default function HiveTicketTracker() {
                 <RefreshCw className="w-4 h-4 animate-spin" /> Syncing...
               </span>
             )}
-            <div className="px-5 py-2.5 rounded-xl font-medium bg-neutral-800 text-white flex items-center gap-2 border border-neutral-700">
+
+            {sheetUrl && (
+              <a 
+                href={sheetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-5 py-2.5 rounded-xl font-medium bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20 cursor-pointer text-sm"
+              >
+                <ExternalLink className="w-4 h-4" />
+                View Sheet
+              </a>
+            )}
+
+            <button
+              onClick={handleToggleAuth}
+              className={`px-4 py-2.5 flex items-center gap-2 rounded-xl font-medium text-sm transition-all border cursor-pointer ${
+                isAuthEnabled 
+                  ? "bg-emerald-900/30 text-emerald-400 border-emerald-800/50 hover:bg-emerald-800/40" 
+                  : "bg-neutral-800 text-neutral-400 border-neutral-700 hover:bg-neutral-700"
+              }`}
+              title="Toggle Security PIN"
+            >
+              {isAuthEnabled ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+              {isAuthEnabled ? "App Locked" : "App Unlocked"}
+            </button>
+
+            <div className="px-4 py-2.5 rounded-xl font-medium bg-neutral-800 text-white flex items-center gap-2 border border-neutral-700 text-sm">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               Live Sync
             </div>
@@ -152,7 +293,7 @@ export default function HiveTicketTracker() {
                   required
                   value={newTicket.date}
                   onChange={(e) => setNewTicket({...newTicket, date: e.target.value})}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all scheme-dark"
+                  className="block w-full min-w-0 appearance-none bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all scheme-dark"
                 />
               </div>
 

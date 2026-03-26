@@ -46,7 +46,7 @@ export async function getTickets(): Promise<Ticket[]> {
       return [];
     }
 
-    return rows.map((row: any[]) => ({
+    return rows.map((row: string[]) => ({
       id: row[0] || "",
       title: row[1] || "",
       date: row[2] || "",
@@ -119,3 +119,11 @@ export async function removeTicket(indexToRemove: number) {
      return { success: false };
    }
 }
+
+export async function getSheetUrl() {
+  if (process.env.GOOGLE_SHEET_ID) {
+    return `https://docs.google.com/spreadsheets/d/${process.env.GOOGLE_SHEET_ID}/edit`;
+  }
+  return null;
+}
+
