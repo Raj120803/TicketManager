@@ -448,22 +448,22 @@ export default function HiveTicketTracker() {
                 </p>
               </div>
             ) : (
-              <div className="flex-1 overflow-x-auto p-6 pt-0 mt-6">
-                <table className="w-full text-left border-collapse">
+              <div className="flex-1 overflow-x-auto p-4 md:p-6 pt-0 mt-6">
+                <table className="w-full min-w-[700px] text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-neutral-800 text-neutral-400 text-sm font-semibold uppercase tracking-wider">
-                      <th className="pb-4 px-4 w-1/5">Ticket ID</th>
-                      <th className="pb-4 px-4 w-2/5">Task Title</th>
-                      <th className="pb-4 px-4 w-1/5">Date</th>
-                      <th className="pb-4 px-4 w-1/5">Time Taken</th>
-                      <th className="pb-4 px-4 w-1/5">Shift</th>
+                    <tr className="border-b border-neutral-800 text-neutral-400 text-xs md:text-sm font-semibold uppercase tracking-wider">
+                      <th className="pb-4 px-4 w-1/5 hidden sm:table-cell">Ticket ID</th>
+                      <th className="pb-4 px-4 w-1/4">Task Title</th>
+                      <th className="pb-4 px-4 w-32 whitespace-nowrap">Date</th>
+                      <th className="pb-4 px-4 w-32 whitespace-nowrap">Time Taken</th>
+                      <th className="pb-4 px-4 w-32 whitespace-nowrap">Shift</th>
                       <th className="pb-4 px-4 text-right w-16"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-800/50">
                     {tickets.map((ticket, idx) => (
                       <tr key={idx} className="group hover:bg-neutral-800/30 transition-colors">
-                        <td className="py-4 px-4 text-neutral-200 font-mono text-sm">
+                        <td className="py-4 px-4 text-neutral-200 font-mono text-sm hidden sm:table-cell">
                           <span className="bg-neutral-800 px-2 py-1.5 rounded-md border border-neutral-700 inline-block shadow-sm">
                             {ticket.id}
                           </span>
@@ -471,14 +471,14 @@ export default function HiveTicketTracker() {
                         <td className="py-4 px-4 text-white font-medium">
                           {ticket.title}
                         </td>
-                        <td className="py-4 px-4 text-neutral-400 text-sm">
+                        <td className="py-4 px-4 text-neutral-400 text-sm whitespace-nowrap">
                           {ticket.date}
                         </td>
-                        <td className="py-4 px-4 text-neutral-300 text-sm">
+                        <td className="py-4 px-4 text-neutral-300 text-sm whitespace-nowrap">
                           {ticket.timeTaken || '-'}
                         </td>
                         <td className="py-4 px-4 text-neutral-400 text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap ${
                             ticket.shift === 'First Half' ? 'bg-blue-900/30 text-blue-400 border border-blue-800/50' :
                             ticket.shift === 'Second Half' ? 'bg-purple-900/30 text-purple-400 border border-purple-800/50' :
                             'bg-amber-900/30 text-amber-400 border border-amber-800/50'
