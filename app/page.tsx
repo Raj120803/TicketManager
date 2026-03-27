@@ -175,6 +175,40 @@ export default function HiveTicketTracker() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans p-6 md:p-12">
+      {isLoading && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-neutral-950 animate-in fade-in duration-500">
+          <div className="relative">
+            <div className="absolute inset-0 bg-emerald-500 rounded-full blur-3xl opacity-20 animate-pulse" />
+            <div className="relative p-8 bg-neutral-900 border border-neutral-800 rounded-full shadow-2xl">
+              <Database className="w-16 h-16 text-emerald-500 animate-pulse" />
+            </div>
+          </div>
+          <div className="mt-8 flex flex-col items-center gap-4">
+            <h1 className="text-2xl font-bold text-white tracking-widest uppercase">
+              HIVE TRACKER
+            </h1>
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-emerald-500 animate-spin" />
+              <span className="text-neutral-500 text-sm font-medium tracking-tight">
+                Authenticating Cloud Sync...
+              </span>
+            </div>
+            {/* Progress line */}
+            <div className="w-48 h-1 bg-neutral-900 rounded-full overflow-hidden mt-4">
+              <div className="h-full bg-emerald-500 w-1/3 rounded-full animate-[progress_1.5s_infinite_ease-in-out]" />
+            </div>
+          </div>
+          
+          <style jsx>{`
+            @keyframes progress {
+              0% { transform: translateX(-100%); width: 30%; }
+              50% { width: 60%; }
+              100% { transform: translateX(330%); width: 30%; }
+            }
+          `}</style>
+        </div>
+      )}
+
       {pinModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-2xl w-full max-w-sm">
@@ -426,12 +460,7 @@ export default function HiveTicketTracker() {
               </span>
             </div>
 
-            {isLoading ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-10 m-6">
-                 <RefreshCw className="w-10 h-10 text-emerald-500 animate-spin mb-4" />
-                 <p className="text-neutral-400">Pinging Google Sheets API...</p>
-              </div>
-            ) : !isConfigured ? (
+            {isLoading ? null : !isConfigured ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-10 m-6 border-2 border-dashed border-red-900/50 rounded-2xl bg-red-900/10">
                 <Database className="w-16 h-16 text-red-500 mb-4" />
                 <h3 className="text-lg font-bold text-red-400">Setup Required</h3>
