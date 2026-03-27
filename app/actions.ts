@@ -24,6 +24,7 @@ export interface Ticket {
   title: string;
   date: string;
   timeTaken: string;
+  shift: string;
 }
 
 export async function getTickets(): Promise<Ticket[]> {
@@ -35,10 +36,10 @@ export async function getTickets(): Promise<Ticket[]> {
 
     const sheets = google.sheets({ version: "v4", auth });
     
-    // We assume the sheet is called "Sheet1" and read columns A to D
+    // We assume the sheet is called "Sheet1" and read columns A to E
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: GOOGLE_SHEET_ID,
-      range: "Sheet1!A2:D", // Skip header row A1:D1
+      range: "Sheet1!A2:E", // Skip header row A1:E1
     });
 
     const rows = response.data.values;
@@ -51,6 +52,7 @@ export async function getTickets(): Promise<Ticket[]> {
       title: row[1] || "",
       date: row[2] || "",
       timeTaken: row[3] || "",
+      shift: row[4] || "",
     })).filter((t: Ticket) => t.id || t.title);
   } catch (error) {
     console.error("Error reading from Google Sheets:", error);
@@ -68,11 +70,11 @@ export async function addTicket(ticket: Ticket) {
     
     await sheets.spreadsheets.values.append({
       spreadsheetId: GOOGLE_SHEET_ID,
-      range: "Sheet1!A:D",
+      range: "Sheet1!A:E",
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [
-          [ticket.id, ticket.title, ticket.date, ticket.timeTaken]
+          [ticket.id, ticket.title, ticket.date, ticket.timeTaken, ticket.shift]
         ],
       },
     });

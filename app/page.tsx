@@ -1,18 +1,39 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Calendar, Hash, Type, Clock, CheckCircle2, RefreshCw, Database, ExternalLink, Lock, Unlock } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Plus, Trash2, Calendar, Hash, Type, Clock, CheckCircle2, RefreshCw, Database, ExternalLink, Lock, Unlock, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { getTickets, addTicket, removeTicket, Ticket, getSheetUrl } from "./actions";
 
 export default function HiveTicketTracker() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [newTicket, setNewTicket] = useState({ id: "", title: "", date: "", timeTaken: "" });
+  const [newTicket, setNewTicket] = useState({ id: "", title: "", date: "", timeTaken: "", shift: "First Half" });
+  const [timeValue, setTimeValue] = useState("");
+  const [timeUnit, setTimeUnit] = useState("Hours");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isConfigured, setIsConfigured] = useState(true); // Flag to check if .env is set
   const [sheetUrl, setSheetUrl] = useState<string | null>(null);
   const [isAuthEnabled, setIsAuthEnabled] = useState(true); // Default to true on new devices
+  
+  // Custom Select State
+  const [isTimeUnitOpen, setIsTimeUnitOpen] = useState(false);
+  const [isShiftOpen, setIsShiftOpen] = useState(false);
+  const timeUnitRef = useRef<HTMLDivElement>(null);
+  const shiftRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (timeUnitRef.current && !timeUnitRef.current.contains(event.target as Node)) {
+        setIsTimeUnitOpen(false);
+      }
+      if (shiftRef.current && !shiftRef.current.contains(event.target as Node)) {
+        setIsShiftOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const [pinModal, setPinModal] = useState<{
     isOpen: boolean;
@@ -116,7 +137,8 @@ export default function HiveTicketTracker() {
       // Re-fetch to ensure sync with Google Sheets (since appending goes to the bottom)
       const data = await getTickets();
       setTickets(data);
-      setNewTicket({ id: "", title: "", date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0], timeTaken: "" });
+      setNewTicket({ id: "", title: "", date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0], timeTaken: "", shift: "First Half" });
+      setTimeValue("");
       toast.success("Ticket added successfully!", { id: toastId });
     } else {
       toast.error("Failed to save to Google Sheets! Check .env credentials.", { id: toastId });
@@ -128,7 +150,8 @@ export default function HiveTicketTracker() {
 
   const handleRemoveTicket = async (indexToRemove: number) => {
     if (isAuthEnabled) {
-      const pin = await requestPin("Authentication required. Enter 4-digit PIN to delete:");
+      const ticketId = tickets[indexToRemove].id;
+      const pin = await requestPin(`Authentication required. Enter 4-digit PIN to delete Ticket [${ticketId}]:`);
       if (pin !== STATIC_PIN) {
         if (pin !== null) toast.error("Incorrect PIN! Ticket not deleted.");
         return;
@@ -301,13 +324,84 @@ export default function HiveTicketTracker() {
                 <label className="text-sm font-semibold text-neutral-300 flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-neutral-500" /> Time Taken
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 2 hours"
-                  value={newTicket.timeTaken}
-                  onChange={(e) => setNewTicket({...newTicket, timeTaken: e.target.value})}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                />
+                <div className="flex -space-x-px">
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      placeholder="e.g. 2"
+                      value={timeValue}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTimeValue(val);
+                        setNewTicket({...newTicket, timeTaken: val ? `${val} ${timeUnit}` : ""});
+                      }}
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-l-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:z-10 transition-all"
+                    />
+                  </div>
+                  <div className="relative w-28 md:w-32" ref={timeUnitRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsTimeUnitOpen(!isTimeUnitOpen)}
+                      className="w-full h-full flex items-center justify-between bg-neutral-950 border border-neutral-800 rounded-r-xl px-3 md:px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:z-10 transition-all cursor-pointer text-left"
+                    >
+                      <span className="text-sm">{timeUnit}</span>
+                      <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${isTimeUnitOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {isTimeUnitOpen && (
+                      <div className="absolute top-full left-0 w-full mt-2 bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden shadow-2xl z-20 backdrop-blur-xl animate-in fade-in zoom-in duration-200">
+                        {["Hours", "Mins"].map((unit) => (
+                          <button
+                            key={unit}
+                            type="button"
+                            onClick={() => {
+                              setTimeUnit(unit);
+                              setNewTicket({...newTicket, timeTaken: timeValue ? `${timeValue} ${unit}` : ""});
+                              setIsTimeUnitOpen(false);
+                            }}
+                            className={`w-full px-4 py-2.5 text-sm text-left hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors ${timeUnit === unit ? 'text-emerald-400 bg-emerald-500/5' : 'text-neutral-400'}`}
+                          >
+                            {unit}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-neutral-300 flex items-center gap-1.5">
+                  <RefreshCw className="w-4 h-4 text-neutral-500" /> Shift Period
+                </label>
+                <div className="relative" ref={shiftRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsShiftOpen(!isShiftOpen)}
+                    className="w-full flex items-center justify-between bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all cursor-pointer text-left"
+                  >
+                    <span className="text-sm">{newTicket.shift}</span>
+                    <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${isShiftOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isShiftOpen && (
+                    <div className="absolute top-full left-0 w-full mt-2 bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden shadow-2xl z-20 backdrop-blur-xl animate-in fade-in zoom-in duration-200">
+                      {["First Half", "Second Half", "Night Shift"].map((shift) => (
+                        <button
+                          key={shift}
+                          type="button"
+                          onClick={() => {
+                            setNewTicket({...newTicket, shift});
+                            setIsShiftOpen(false);
+                          }}
+                          className={`w-full px-4 py-3 text-sm text-left hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors ${newTicket.shift === shift ? 'text-emerald-400 bg-emerald-500/5' : 'text-neutral-400'}`}
+                        >
+                          {shift}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <button
@@ -362,6 +456,7 @@ export default function HiveTicketTracker() {
                       <th className="pb-4 px-4 w-2/5">Task Title</th>
                       <th className="pb-4 px-4 w-1/5">Date</th>
                       <th className="pb-4 px-4 w-1/5">Time Taken</th>
+                      <th className="pb-4 px-4 w-1/5">Shift</th>
                       <th className="pb-4 px-4 text-right w-16"></th>
                     </tr>
                   </thead>
@@ -382,10 +477,19 @@ export default function HiveTicketTracker() {
                         <td className="py-4 px-4 text-neutral-300 text-sm">
                           {ticket.timeTaken || '-'}
                         </td>
+                        <td className="py-4 px-4 text-neutral-400 text-sm">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            ticket.shift === 'First Half' ? 'bg-blue-900/30 text-blue-400 border border-blue-800/50' :
+                            ticket.shift === 'Second Half' ? 'bg-purple-900/30 text-purple-400 border border-purple-800/50' :
+                            'bg-amber-900/30 text-amber-400 border border-amber-800/50'
+                          }`}>
+                            {ticket.shift || '-'}
+                          </span>
+                        </td>
                         <td className="py-4 px-4 text-right">
                           <button
                             onClick={() => handleRemoveTicket(idx)}
-                            className="text-neutral-600 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer disabled:opacity-0"
+                            className="text-neutral-600 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-red-500/10 md:opacity-0 md:group-hover:opacity-100 opacity-100 focus:opacity-100 cursor-pointer disabled:opacity-0"
                             title="Remove ticket"
                             disabled={isSaving}
                           >
