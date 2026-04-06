@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Calendar, Hash, Type, Clock, CheckCircle2, RefreshCw, Database, ExternalLink, Lock, Unlock, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Calendar, Hash, Type, Clock, CheckCircle2, RefreshCw, Database, ExternalLink, Lock, Unlock, ChevronDown, Edit2, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { getTickets, addTicket, removeTicket, Ticket, getSheetUrl } from "./actions";
 
@@ -45,6 +45,21 @@ export default function HiveTicketTracker() {
     resolve: () => {},
   });
   const [pinInput, setPinInput] = useState("");
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
+  // Edit modal state
+  const [editModal, setEditModal] = useState<{
+    isOpen: boolean;
+    index: number | null;
+    ticket: Ticket | null;
+  }>({
+    isOpen: false,
+    index: null,
+    ticket: null,
+  });
 
   const requestPin = (message: string): Promise<string | null> => {
     return new Promise((resolve) => {
@@ -173,6 +188,49 @@ export default function HiveTicketTracker() {
     setIsSaving(false);
   };
 
+  const handleEditTicket = (index: number) => {
+    setEditModal({
+      isOpen: true,
+      index: index,
+      ticket: { ...tickets[index] }
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editModal.ticket || editModal.index === null) return;
+
+    if (isAuthEnabled) {
+      const pin = await requestPin(`Authentication required. Enter 4-digit PIN to edit Ticket [${editModal.ticket.id}]:`);
+      if (pin !== STATIC_PIN) {
+        if (pin !== null) toast.error("Incorrect PIN! Ticket not edited.");
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    
+    // Update the ticket in memory
+    const updatedTickets = [...tickets];
+    updatedTickets[editModal.index] = editModal.ticket;
+    setTickets(updatedTickets);
+    
+    setEditModal({ isOpen: false, index: null, ticket: null });
+    toast.success("Ticket updated successfully!");
+    
+    setIsSaving(false);
+  };
+
+  const handleEditCancel = () => {
+    setEditModal({ isOpen: false, index: null, ticket: null });
+  };
+
+  // Calculate pagination
+  const totalPages = Math.ceil(tickets.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedTickets = tickets.slice(startIndex, endIndex);
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans p-6 md:p-12">
       {isLoading && (
@@ -248,7 +306,120 @@ export default function HiveTicketTracker() {
           </div>
         </div>
       )}
-      <div className="max-w-6xl mx-auto space-y-8">
+
+      {editModal.isOpen && editModal.ticket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
+              <Edit2 className="w-5 h-5 text-emerald-400" />
+              Edit Ticket
+            </h3>
+            
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-neutral-300 flex items-center gap-1.5">
+                  <Hash className="w-4 h-4 text-neutral-500" /> Ticket ID
+                </label>
+                <input
+                  type="text"
+                  value={editModal.ticket.id}
+                  onChange={(e) => setEditModal({...editModal, ticket: {...editModal.ticket, id: e.target.value} as Ticket})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-neutral-300 flex items-center gap-1.5">
+                  <Type className="w-4 h-4 text-neutral-500" /> Task Title
+                </label>
+                <input
+                  type="text"
+                  value={editModal.ticket.title}
+                  onChange={(e) => setEditModal({...editModal, ticket: {...editModal.ticket, title: e.target.value} as Ticket})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-neutral-300 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-neutral-500" /> Date
+                </label>
+                <input
+                  type="date"
+                  value={editModal.ticket.date}
+                  onChange={(e) => setEditModal({...editModal, ticket: {...editModal.ticket, date: e.target.value} as Ticket})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-neutral-300 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-neutral-500" /> Time Taken
+                </label>
+                <input
+                  type="text"
+                  value={editModal.ticket.timeTaken}
+                  onChange={(e) => setEditModal({...editModal, ticket: {...editModal.ticket, timeTaken: e.target.value} as Ticket})}
+                  placeholder="e.g. 2 Hours"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-neutral-300 flex items-center gap-1.5">
+                  <RefreshCw className="w-4 h-4 text-neutral-500" /> Shift Period
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {["First Half", "Second Half", "Night Shift", "Off Shift"].map((shift) => {
+                    const isSelected = editModal.ticket && Array.isArray(editModal.ticket.shift)
+                      ? editModal.ticket.shift.includes(shift)
+                      : false;
+                    return (
+                      <button
+                        key={shift}
+                        type="button"
+                        onClick={() => {
+                          if (!editModal.ticket) return;
+                          const currentShift = editModal.ticket.shift || [];
+                          const updated = isSelected
+                            ? (Array.isArray(currentShift) ? currentShift.filter((s: string) => s !== shift) : [])
+                            : (Array.isArray(currentShift) ? [...currentShift, shift] : [shift]);
+                          setEditModal({...editModal, ticket: {...editModal.ticket, shift: updated} as Ticket});
+                        }}
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'
+                        }`}
+                      >
+                        {shift}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={handleEditCancel}
+                  className="w-1/2 py-3 px-4 rounded-xl font-medium bg-neutral-800 text-neutral-300 hover:bg-neutral-700 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="w-1/2 py-3 px-4 rounded-xl font-bold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+                >
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      <div className="max-w-7xl mx-auto space-y-8">
         
         {/* Header */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -461,8 +632,8 @@ export default function HiveTicketTracker() {
 
               <button
                 type="submit"
-                disabled={isSaving}
-                className="w-full mt-4 bg-white text-black hover:bg-neutral-200 disabled:opacity-50 font-bold py-3 px-4 flex items-center justify-center gap-2 rounded-xl transition-all cursor-pointer"
+                disabled={isSaving || !newTicket.id.trim() || !newTicket.title.trim() || !newTicket.date}
+                className="w-full mt-4 bg-white text-black hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed font-bold py-3 px-4 flex items-center justify-center gap-2 rounded-xl transition-all cursor-pointer"
               >
                 {isSaving ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
                 {isSaving ? "Syncing..." : "Add & Sync to Cloud"}
@@ -498,67 +669,120 @@ export default function HiveTicketTracker() {
                 </p>
               </div>
             ) : (
-              <div className="flex-1 overflow-x-auto p-4 md:p-6 pt-0 mt-6">
-                <table className="w-full min-w-[700px] text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-neutral-800 text-neutral-400 text-xs md:text-sm font-semibold uppercase tracking-wider">
-                      <th className="pb-4 px-4 w-1/5 hidden sm:table-cell">Ticket ID</th>
-                      <th className="pb-4 px-4 w-1/4">Task Title</th>
-                      <th className="pb-4 px-4 w-32 whitespace-nowrap">Date</th>
-                      <th className="pb-4 px-4 w-32 whitespace-nowrap">Time Taken</th>
-                      <th className="pb-4 px-4 w-32 whitespace-nowrap">Shift</th>
-                      <th className="pb-4 px-4 text-right w-16"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-800/50">
-                    {tickets.map((ticket, idx) => (
-                      <tr key={idx} className="group hover:bg-neutral-800/30 transition-colors">
-                        <td className="py-4 px-4 text-neutral-200 font-mono text-sm hidden sm:table-cell">
-                          <span className="bg-neutral-800 px-2 py-1.5 rounded-md border border-neutral-700 inline-block shadow-sm">
-                            {ticket.id}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 text-white font-medium">
-                          {ticket.title}
-                        </td>
-                        <td className="py-4 px-4 text-neutral-400 text-sm whitespace-nowrap">
-                          {ticket.date}
-                        </td>
-                        <td className="py-4 px-4 text-neutral-300 text-sm whitespace-nowrap">
-                          {ticket.timeTaken || '-'}
-                        </td>
-                        <td className="py-4 px-4 text-neutral-400 text-sm">
-                          <div className="flex flex-wrap gap-1">
-                            {(Array.isArray(ticket.shift)
-                              ? ticket.shift
-                              : (ticket.shift ? [ticket.shift] : []))
-                              .map((s: string) => (
-                                <span key={s} className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${
-                                  s === 'First Half'  ? 'bg-blue-900/30 text-blue-400 border border-blue-800/50' :
-                                  s === 'Second Half' ? 'bg-purple-900/30 text-purple-400 border border-purple-800/50' :
-                                  s === 'Off Shift'   ? 'bg-neutral-800 text-neutral-400 border border-neutral-700' :
-                                  'bg-amber-900/30 text-amber-400 border border-amber-800/50'
-                                }`}>
-                                  {s}
-                                </span>
-                              ))}
-                            {(!ticket.shift || (Array.isArray(ticket.shift) && ticket.shift.length === 0)) && <span className="text-neutral-600">-</span>}
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 text-right">
-                          <button
-                            onClick={() => handleRemoveTicket(idx)}
-                            className="text-neutral-600 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-red-500/10 md:opacity-0 md:group-hover:opacity-100 opacity-100 focus:opacity-100 cursor-pointer disabled:opacity-0"
-                            title="Remove ticket"
-                            disabled={isSaving}
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </td>
+              <div className="flex flex-col h-full">
+                {/* Table Container with Fixed Height and Scroll */}
+                <div className="flex-1 overflow-y-auto md:pb-6  pt-0 mt-0" style={{ maxHeight: 'calc(100vh - 400px)', minHeight: '400px' }}>
+                  <table className="w-full min-w-[700px] text-left border-collapse">
+                    <thead className="sticky top-0 bg-neutral-900 z-40">
+                      <tr className="border-b border-neutral-800 text-neutral-400 text-xs md:text-sm font-semibold uppercase tracking-wider">
+                        <th className="p-4 px-4 w-1/5 hidden sm:table-cell">Ticket ID</th>
+                        <th className="p-4 px-4 w-1/4">Task Title</th>
+                        <th className="p-4 px-4 w-32 whitespace-nowrap">Date</th>
+                        <th className="p-4 px-4 w-32 whitespace-nowrap">Time Taken</th>
+                        <th className="p-4 px-4 w-32 whitespace-nowrap">Shift</th>
+                        <th className="p-4 px-4 text-right w-20"></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-800/50">
+                      {paginatedTickets.map((ticket, paginIdx) => {
+                        const actualIdx = startIndex + paginIdx;
+                        return (
+                          <tr key={actualIdx} className="group hover:bg-neutral-800/30 transition-colors">
+                            <td className="py-4 px-4 text-neutral-200 font-mono text-sm hidden sm:table-cell">
+                              <span className="bg-neutral-800 px-2 py-1.5 rounded-md border border-neutral-700 inline-block shadow-sm">
+                                {ticket.id}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-white font-medium">
+                              {ticket.title}
+                            </td>
+                            <td className="py-4 px-4 text-neutral-400 text-sm whitespace-nowrap">
+                              {ticket.date}
+                            </td>
+                            <td className="py-4 px-4 text-neutral-300 text-sm whitespace-nowrap">
+                              {ticket.timeTaken || '-'}
+                            </td>
+                            <td className="py-4 px-4 text-neutral-400 text-sm">
+                              <div className="flex flex-wrap gap-1">
+                                {(Array.isArray(ticket.shift)
+                                  ? ticket.shift
+                                  : (ticket.shift ? [ticket.shift] : []))
+                                  .map((s: string) => (
+                                    <span key={s} className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${
+                                      s === 'First Half'  ? 'bg-blue-900/30 text-blue-400 border border-blue-800/50' :
+                                      s === 'Second Half' ? 'bg-purple-900/30 text-purple-400 border border-purple-800/50' :
+                                      s === 'Off Shift'   ? 'bg-neutral-800 text-neutral-400 border border-neutral-700' :
+                                      'bg-amber-900/30 text-amber-400 border border-amber-800/50'
+                                    }`}>
+                                      {s}
+                                    </span>
+                                  ))}
+                                {(!ticket.shift || (Array.isArray(ticket.shift) && ticket.shift.length === 0)) && <span className="text-neutral-600">-</span>}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-right">
+                              <div className="flex gap-2 justify-end md:opacity-0 md:group-hover:opacity-100 opacity-100 focus:opacity-100">
+                                <button
+                                  onClick={() => handleEditTicket(actualIdx)}
+                                  className="text-neutral-600 hover:text-blue-400 transition-colors p-2 rounded-lg hover:bg-blue-500/10 cursor-pointer disabled:opacity-0"
+                                  title="Edit ticket"
+                                  disabled={isSaving}
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveTicket(actualIdx)}
+                                  className="text-neutral-600 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-red-500/10 cursor-pointer disabled:opacity-0"
+                                  title="Remove ticket"
+                                  disabled={isSaving}
+                                >
+                                  <Trash2 className="w-5 h-5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="border-t border-neutral-800 p-4 md:p-6 flex items-center justify-between">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-800 text-neutral-300 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </button>
+                    <div className="flex items-center gap-2">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-8 h-8 rounded-lg font-medium transition-colors cursor-pointer ${
+                            currentPage === page
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-800 text-neutral-300 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
