@@ -268,7 +268,7 @@ export default function HiveTicketTracker() {
       )}
 
       {pinModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-51 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-2xl w-full max-w-sm">
             <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-white">
               <Lock className="w-5 h-5 text-emerald-400" />
